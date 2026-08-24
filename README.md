@@ -278,16 +278,6 @@ scripts/run_tests.sh
 
 ---
 
-## Community
-
-- 💬 [Discord](https://discord.gg/NousResearch)
-- 📚 [Skills Hub](https://agentskills.io)
-- 🐛 [Issues](https://github.com/NousResearch/synapse-agent/issues)
-- 🔌 [computer-use-linux](https://github.com/avifenesh/computer-use-linux) — Linux desktop-control MCP server for Synapse and other MCP hosts, with AT-SPI accessibility trees, Wayland/X11 input, screenshots, and compositor window targeting.
-- 🔌 [SynapseClaw](https://github.com/AaronWong1999/synapseclaw) — Community WeChat bridge: Run Synapse Agent and OpenClaw on the same WeChat account.
-
----
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
