@@ -13,7 +13,7 @@ import {
   getSession,
   type SessionInfo,
   type SessionResumeResponse
-} from '@/hermes'
+} from '@/synapse'
 import { createClientSessionState } from '@/lib/chat-runtime'
 import { clearSessionDraft, stashSessionDraft, takeSessionDraft } from '@/store/composer'
 import { requestGatewayForAgent } from '@/store/gateway'
@@ -59,7 +59,7 @@ import type { ClientSessionState } from '../../types'
 import { useSessionActions } from './use-session-actions'
 import { useSessionStateCache } from './use-session-state-cache'
 
-vi.mock('@/hermes', async importOriginal => ({
+vi.mock('@/synapse', async importOriginal => ({
   ...(await importOriginal<Record<string, unknown>>()),
   deleteSession: vi.fn(),
   getSession: vi.fn(),

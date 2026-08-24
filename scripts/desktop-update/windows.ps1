@@ -2,14 +2,14 @@
 #
 # WHY THIS EXISTS (the frozen-binary problem): the Desktop's Update button
 # used to hand off exclusively to the staged Tauri binary
-# (%HERMES_HOME%\hermes-setup.exe). That binary has no self-update path --
-# copy_self_to_hermes_home deliberately no-ops during --update -- so every
+# (%SYNAPSE_HOME%\synapse-setup.exe). That binary has no self-update path --
+# copy_self_to_synapse_home deliberately no-ops during --update -- so every
 # updater-side fix (cache refresh #67369, marker self-adopt #74782, straggler
 # handling) only reaches users when a new installer is built, signed, and
 # published. In practice binaries go months stale and users hit long-fixed
 # bugs on every update (the 2026-08-09 incident chain).
 #
-# This script lives in the repo checkout, so EVERY `hermes update` refreshes
+# This script lives in the repo checkout, so EVERY `synapse update` refreshes
 # the very code that drives the next update. The Desktop spawns it through a
 # `cmd start` wrapper (see wrapHandoffForDetachedConsole in
 # apps/desktop/electron/updater-process.ts -- a bare detached+hidden
@@ -19,25 +19,25 @@
 # CONTRACT (keep in sync with apps/desktop/electron/main.ts):
 #   cmd /d /s /c start "" /min powershell -NoProfile -ExecutionPolicy Bypass
 #     -File scripts\desktop-update\windows.ps1
-#     -InstallRoot <path>   repo checkout (HERMES_HOME\hermes-agent)
+#     -InstallRoot <path>   repo checkout (SYNAPSE_HOME\synapse-agent)
 #     -Branch <ref>         branch to update against
 #     -DesktopPid <pid>     the Electron main process to wait out
 #     [-RelaunchExe <path>] Hermes.exe to start when done (omit = no relaunch)
 #     [-NoUi]               headless (tests); default shows a progress window
-#     [-NoMarkerCleanup]    leave .hermes-update-in-progress in place (tests)
+#     [-NoMarkerCleanup]    leave .synapse-update-in-progress in place (tests)
 #
 # SAFETY POSTURE: both preflight gates FAIL CLOSED. A Desktop that never
 # exits, or a venv shim that never unlocks, aborts the hand-off without
 # mutating the install -- a skipped update is recoverable, a half-updated
 # venv is not. Every exit path (success, abort, crash) writes
-# .hermes-update-result.json for the relaunched Desktop to surface, and
+# .synapse-update-result.json for the relaunched Desktop to surface, and
 # relaunches the Desktop so the user is never left stranded.
 #
-# Marker: we claim HERMES_HOME\.hermes-update-in-progress with OUR pid as
+# Marker: we claim SYNAPSE_HOME\.synapse-update-in-progress with OUR pid as
 # step 0 (the wrapper cmd.exe pid the Desktop saw is useless -- it exits
-# immediately), retaining HERMES_UPDATE_STARTED_AT from the Desktop hand-off.
-# hermes_cli/update_lock.py's ancestry rule lets our
-# `hermes update` child adopt the claim; electron/update-marker.ts parks a
+# immediately), retaining SYNAPSE_UPDATE_STARTED_AT from the Desktop hand-off.
+# synapse_cli/update_lock.py's ancestry rule lets our
+# `synapse update` child adopt the claim; electron/update-marker.ts parks a
 # relaunched Desktop on it. Cleanup only removes the marker while WE still
 # own it (a handoff partner that rewrote it keeps its claim).
 
@@ -66,7 +66,7 @@ $ErrorActionPreference = "Continue"
 # WMI-spawned process starts unfocused). AllowSetForegroundWindow lets us
 # pass our foreground right on to the new Hermes.exe pid.
 try {
-    Add-Type -Namespace HermesHandoff -Name Win32 -MemberDefinition @'
+    Add-Type -Namespace SynapseHandoff -Name Win32 -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr hWnd);
 [DllImport("user32.dll")] public static extern bool AllowSetForegroundWindow(int dwProcessId);
 [DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
@@ -80,13 +80,13 @@ try {
     $OutputEncoding = [System.Text.Encoding]::UTF8
 } catch {}
 $TempDir = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
-$HermesHome = if ($InstallRoot) { Split-Path -Parent $InstallRoot } else { $TempDir }
-$MarkerPath = Join-Path $HermesHome ".hermes-update-in-progress"
-$LogDir = Join-Path $HermesHome "logs"
+$SynapseHome = if ($InstallRoot) { Split-Path -Parent $InstallRoot } else { $TempDir }
+$MarkerPath = Join-Path $SynapseHome ".synapse-update-in-progress"
+$LogDir = Join-Path $SynapseHome "logs"
 $LogPath = Join-Path $LogDir "desktop-update-handoff.log"
-$ResultPath = Join-Path $HermesHome ".hermes-update-result.json"
+$ResultPath = Join-Path $SynapseHome ".synapse-update-result.json"
 $script:Ui = $null
-$script:UiStage = "Hermes will open once done."   # until the first gate; matches ui.html
+$script:UiStage = "Synapse will open once done."   # until the first gate; matches ui.html
 $script:UiStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 function Write-HandoffLog([string]$Message) {
@@ -235,15 +235,15 @@ function Stop-UiServer([switch]$LeaveWindow) {
         } catch {}
     }
     # Best-effort removal of the dedicated browser profile dirs: this run's
-    # profile plus any stale hermes-update-ui-* leftovers from interrupted
+    # profile plus any stale synapse-update-ui-* leftovers from interrupted
     # past runs. A browser that is still shutting down may hold the lock, in
     # which case the delete silently no-ops. Safe to sweep by prefix: the
-    # update marker (.hermes-update-in-progress) serialises hand-offs, so no
+    # update marker (.synapse-update-in-progress) serialises hand-offs, so no
     # other run's profile can be in active use here.
     try {
         $profileDirs = @()
         if ($script:UiServer.Profile) { $profileDirs += $script:UiServer.Profile }
-        Get-ChildItem -LiteralPath $TempDir -Directory -Filter "hermes-update-ui-*" -ErrorAction SilentlyContinue |
+        Get-ChildItem -LiteralPath $TempDir -Directory -Filter "synapse-update-ui-*" -ErrorAction SilentlyContinue |
             ForEach-Object { $profileDirs += $_.FullName }
         foreach ($dir in ($profileDirs | Select-Object -Unique)) {
             Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
@@ -274,7 +274,7 @@ function Get-UiProgressLine {
 
 function Publish-UiProgress([string]$Message) {
     # Stages come from the orchestrator's own control flow. Child stdout and
-    # stderr remain asynchronously drained in Invoke-HermesStep and are never
+    # stderr remain asynchronously drained in Invoke-SynapseStep and are never
     # read or parsed for UI updates.
     $script:UiStage = $Message
     $script:UiState.message = $Message
@@ -313,7 +313,7 @@ function Show-ProgressWindow {
                 # we own (a default-profile launch delegates to an existing
                 # browser and returns instantly, leaving nothing to close), and
                 # avoids touching the user's real browser profile.
-                $browserProfile = Join-Path $TempDir ("hermes-update-ui-{0}" -f $PID)
+                $browserProfile = Join-Path $TempDir ("synapse-update-ui-{0}" -f $PID)
                 $browserArgs = @(
                     "--app=http://127.0.0.1:$($server.Port)/",
                     "--user-data-dir=$browserProfile",
@@ -349,7 +349,7 @@ function Show-ProgressWindow {
             $mute = [System.Drawing.ColorTranslator]::FromHtml("#A8A8A8")
         }
         $form = New-Object System.Windows.Forms.Form
-        $form.Text = "Hermes"
+        $form.Text = "Synapse"
         $form.FormBorderStyle = "FixedSingle"
         $form.MaximizeBox = $false
         $form.MinimizeBox = $false
@@ -363,7 +363,7 @@ function Show-ProgressWindow {
         $bar.MarqueeAnimationSpeed = 30
         $bar.SetBounds(60, 128, 160, 8)
         $title = New-Object System.Windows.Forms.Label
-        $title.Text = "Updating Hermes"
+        $title.Text = "Updating Synapse"
         $title.Font = New-Object System.Drawing.Font("Segoe UI Semibold", 12)
         $title.ForeColor = $fore
         $title.TextAlign = "MiddleCenter"
@@ -384,7 +384,7 @@ function Show-ProgressWindow {
         # window is decoration and competes with nothing (no TopMost).
         try {
             $form.Activate()
-            if ($script:Win32) { [HermesHandoff.Win32]::SetForegroundWindow($form.Handle) | Out-Null }
+            if ($script:Win32) { [SynapseHandoff.Win32]::SetForegroundWindow($form.Handle) | Out-Null }
         } catch {}
         [System.Windows.Forms.Application]::DoEvents()
         $script:Ui = [pscustomobject]@{ Form = $form; Bar = $bar; Title = $title; Sub = $sub; Timer = $null }
@@ -405,7 +405,7 @@ function Show-ProgressWindow {
 
 function Show-ErrorFinale([string]$Message) {
     # Terse by design: a title + the debug-share pointer. No error text, no
-    # log tail -- `hermes debug share` uploads the real evidence and the
+    # log tail -- `synapse debug share` uploads the real evidence and the
     # relaunched Desktop surfaces the result message.
     if ($script:UiServer) {
         # The shim renders the error state itself; leave the window up for
@@ -421,7 +421,7 @@ function Show-ErrorFinale([string]$Message) {
         if ($ui.Timer) { $ui.Timer.Stop() }
         $ui.Bar.Visible = $false
         $ui.Title.Text = "Failed to update"
-        $ui.Sub.Text = "Run `"hermes debug share`" in a terminal to send a report."
+        $ui.Sub.Text = "Run `"synapse debug share`" in a terminal to send a report."
         $close = New-Object System.Windows.Forms.Button
         $close.Text = "Close"
         $close.SetBounds(100, 252, 80, 28)
@@ -433,7 +433,7 @@ function Show-ErrorFinale([string]$Message) {
         $ui.Form.AcceptButton = $close
         try {
             $ui.Form.Activate()
-            if ($script:Win32) { [HermesHandoff.Win32]::SetForegroundWindow($ui.Form.Handle) | Out-Null }
+            if ($script:Win32) { [SynapseHandoff.Win32]::SetForegroundWindow($ui.Form.Handle) | Out-Null }
         } catch {}
         # Hold for dismissal so the failure is actually seen, but never park
         # forever -- the marker is already cleaned up and the relaunched
@@ -451,7 +451,7 @@ function Show-ManualFinale([string]$Message) {
     # shape as the error finale, success glyph semantics: the shim renders
     # `manual` itself; the WinForms card swaps its copy. Held so the user
     # actually sees the instruction — this window is the only surface until
-    # they reopen Hermes themselves.
+    # they reopen Synapse themselves.
     if ($script:UiServer) {
         Publish-UiEvent "manual" $Message
         Stop-UiServer -LeaveWindow
@@ -475,7 +475,7 @@ function Show-ManualFinale([string]$Message) {
         $ui.Form.AcceptButton = $close
         try {
             $ui.Form.Activate()
-            if ($script:Win32) { [HermesHandoff.Win32]::SetForegroundWindow($ui.Form.Handle) | Out-Null }
+            if ($script:Win32) { [SynapseHandoff.Win32]::SetForegroundWindow($ui.Form.Handle) | Out-Null }
         } catch {}
         $deadline = (Get-Date).AddMinutes(5)
         while (-not $script:ErrorDismissed -and (Get-Date) -lt $deadline -and $ui.Form.Visible) {
@@ -582,7 +582,7 @@ function Start-DesktopRelaunch {
             # takes a couple seconds to create it.
             try {
                 if ($script:Win32) {
-                    [HermesHandoff.Win32]::AllowSetForegroundWindow([int]$r.ProcessId) | Out-Null
+                    [SynapseHandoff.Win32]::AllowSetForegroundWindow([int]$r.ProcessId) | Out-Null
                     $deadline = (Get-Date).AddSeconds(20)
                     while ((Get-Date) -lt $deadline) {
                         $hwnd = [System.IntPtr]::Zero
@@ -597,8 +597,8 @@ function Start-DesktopRelaunch {
                             break
                         }
                         if ($hwnd -ne [System.IntPtr]::Zero) {
-                            [HermesHandoff.Win32]::ShowWindow($hwnd, 9) | Out-Null  # SW_RESTORE
-                            [HermesHandoff.Win32]::SetForegroundWindow($hwnd) | Out-Null
+                            [SynapseHandoff.Win32]::ShowWindow($hwnd, 9) | Out-Null  # SW_RESTORE
+                            [SynapseHandoff.Win32]::SetForegroundWindow($hwnd) | Out-Null
                             Write-HandoffLog "focused relaunched desktop window"
                             break
                         }
@@ -622,7 +622,7 @@ function Start-DesktopRelaunch {
         # window can't close while the app lives. Explorer re-parents the
         # target exactly like a normal shell launch, giving the same
         # no-console detachment WMI would have. Explorer returns no pid, so
-        # verify by watching for a fresh Hermes process.
+        # verify by watching for a fresh Synapse process.
         try {
             $exeName = [System.IO.Path]::GetFileNameWithoutExtension($RelaunchExe)
             $before = @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
@@ -638,14 +638,14 @@ function Start-DesktopRelaunch {
                     # (us) can delegate that right.
                     try {
                         if ($script:Win32) {
-                            [HermesHandoff.Win32]::AllowSetForegroundWindow([int]$fresh[0].Id) | Out-Null
+                            [SynapseHandoff.Win32]::AllowSetForegroundWindow([int]$fresh[0].Id) | Out-Null
                             $focusDeadline = (Get-Date).AddSeconds(20)
                             while ((Get-Date) -lt $focusDeadline) {
                                 $hwnd = [System.IntPtr]::Zero
                                 try { $hwnd = (Get-Process -Id $fresh[0].Id -ErrorAction Stop).MainWindowHandle } catch { break }
                                 if ($hwnd -ne [System.IntPtr]::Zero) {
-                                    [HermesHandoff.Win32]::ShowWindow($hwnd, 9) | Out-Null  # SW_RESTORE
-                                    [HermesHandoff.Win32]::SetForegroundWindow($hwnd) | Out-Null
+                                    [SynapseHandoff.Win32]::ShowWindow($hwnd, 9) | Out-Null  # SW_RESTORE
+                                    [SynapseHandoff.Win32]::SetForegroundWindow($hwnd) | Out-Null
                                     Write-HandoffLog "focused relaunched desktop window"
                                     break
                                 }
@@ -691,8 +691,8 @@ function Start-DesktopRelaunch {
 # write end of a redirected pipe to the child as an INHERITABLE handle, so
 # every descendant that is spawned without its own redirection gets a
 # duplicate -- and the read side does not see EOF until the last of them
-# closes it. `hermes update` deliberately runs its build steps with stdout
-# inherited (hermes_cli/main.py, the tee-stderr runner), so the tree under a
+# closes it. `synapse update` deliberately runs its build steps with stdout
+# inherited (synapse_cli/main.py, the tee-stderr runner), so the tree under a
 # step is arbitrarily deep and not something this script can enumerate. When
 # one of those descendants is a resident gateway, the pipe stays open for the
 # life of the gateway, i.e. forever.
@@ -700,9 +700,9 @@ function Start-DesktopRelaunch {
 # Overridable so the pipe-drain self-test does not have to sit out the real
 # grace; not documented as a user knob.
 $script:StepDrainGraceSeconds = 20
-if ($env:HERMES_UPDATE_PIPE_DRAIN_SECONDS) {
+if ($env:SYNAPSE_UPDATE_PIPE_DRAIN_SECONDS) {
     $parsedGrace = 0
-    if ([int]::TryParse($env:HERMES_UPDATE_PIPE_DRAIN_SECONDS, [ref]$parsedGrace) -and $parsedGrace -ge 0) {
+    if ([int]::TryParse($env:SYNAPSE_UPDATE_PIPE_DRAIN_SECONDS, [ref]$parsedGrace) -and $parsedGrace -ge 0) {
         $script:StepDrainGraceSeconds = $parsedGrace
     }
 }
@@ -735,21 +735,21 @@ function Step-PipeDrain($Reader, [ref]$Task, $Buffer, $Sink, [ref]$Moved) {
     return $false
 }
 
-function Invoke-HermesStep([string]$Exe, [string[]]$HermesArgs, [string]$Tag) {
+function Invoke-SynapseStep([string]$Exe, [string[]]$SynapseArgs, [string]$Tag) {
     # The window does not stream child output, so no line-pump: both pipes
     # drain asynchronously (no deadlock however chatty the child) while a small
     # DoEvents loop keeps the marquee animating through long silent
     # stretches (pip installs) -- the old EndOfStream pump blocked on quiet
     # children and froze it. Full output still lands in the hand-off log
-    # afterwards, where `hermes debug share` picks it up.
+    # afterwards, where `synapse debug share` picks it up.
     #
     # The drain is bounded once the step exits (#90455). Waiting for pipe EOF
     # is waiting on the step's whole surviving descendant tree, and this
     # function sits upstream of every terminal obligation the hand-off has --
-    # .hermes-update-result.json, clearing .hermes-update-in-progress,
+    # .synapse-update-result.json, clearing .synapse-update-in-progress,
     # relaunching the Desktop. One resident grandchild holding an inherited
     # handle used to strand all three and leave the Desktop on "Updating
-    # Hermes" until the user killed something by hand. Losing the tail of a
+    # Synapse" until the user killed something by hand. Losing the tail of a
     # log is the strictly better failure.
     # System.Diagnostics.Process directly: Start-Process's .ExitCode is
     # unreliably $null under PS 5.1 even with the Handle-touch workaround.
@@ -757,11 +757,11 @@ function Invoke-HermesStep([string]$Exe, [string[]]$HermesArgs, [string]$Tag) {
     $psi.FileName = $Exe
     # .Arguments string (PS 5.1 / .NET Framework has no ArgumentList).
     # Args here are fixed flags + a branch ref; quote each defensively.
-    $psi.Arguments = ($HermesArgs | ForEach-Object { '"{0}"' -f ($_ -replace '"', '\"') }) -join ' '
+    $psi.Arguments = ($SynapseArgs | ForEach-Object { '"{0}"' -f ($_ -replace '"', '\"') }) -join ' '
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
-    # hermes update prints UTF-8 (checkmarks, arrows, box glyphs). PS 5.1
+    # synapse update prints UTF-8 (checkmarks, arrows, box glyphs). PS 5.1
     # defaults these readers to the OEM codepage, which mangles every
     # multi-byte glyph into mojibake in the log.
     $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
@@ -848,8 +848,8 @@ $finalMsg = "update did not complete"
 # Manual QA for the Edge shell without a checkout or a real update. Exits
 # before the marker/desktop/venv machinery — touches nothing. Off Windows
 # (or without Edge) the loopback server still starts and the URL prints, so
-# the page can be QA'd in any browser; HERMES_SELFTEST_FAIL=1 exercises the
-# error state, HERMES_SELFTEST_HOLD_SECONDS delays the terminal event.
+# the page can be QA'd in any browser; SYNAPSE_SELFTEST_FAIL=1 exercises the
+# error state, SYNAPSE_SELFTEST_HOLD_SECONDS delays the terminal event.
 if ($SelfTestUi) {
     New-Item -ItemType Directory -Path $LogDir -Force -ErrorAction SilentlyContinue | Out-Null
     Show-ProgressWindow
@@ -864,10 +864,10 @@ if ($SelfTestUi) {
     }
     Write-HandoffLog "SELF-TEST: shim simulation (no update will run)"
     $hold = 6
-    if ($env:HERMES_SELFTEST_HOLD_SECONDS) { $hold = [int]$env:HERMES_SELFTEST_HOLD_SECONDS }
+    if ($env:SYNAPSE_SELFTEST_HOLD_SECONDS) { $hold = [int]$env:SYNAPSE_SELFTEST_HOLD_SECONDS }
     Publish-UiProgress "Testing quiet update"
     Start-Sleep -Seconds $hold
-    if ($env:HERMES_SELFTEST_FAIL) {
+    if ($env:SYNAPSE_SELFTEST_FAIL) {
         Show-ErrorFinale "self-test error state"
     } else {
         Close-ProgressWindow
@@ -875,8 +875,8 @@ if ($SelfTestUi) {
     exit 0
 }
 
-# -SelfTestPipeDrain: prove Invoke-HermesStep survives a leaked pipe ------
-# The #90455 deadlock needs no update, no checkout and no Hermes install to
+# -SelfTestPipeDrain: prove Invoke-SynapseStep survives a leaked pipe ------
+# The #90455 deadlock needs no update, no checkout and no Synapse install to
 # reproduce -- only a step whose grandchild outlives it holding the inherited
 # write end of the redirected pipe. That is exactly what this builds, so the
 # fix has an executable proof on Windows instead of a source-grep. Exits
@@ -894,15 +894,15 @@ if ($SelfTestUi) {
 if ($SelfTestPipeDrain) {
     New-Item -ItemType Directory -Path $LogDir -Force -ErrorAction SilentlyContinue | Out-Null
     $hold = 60
-    if ($env:HERMES_SELFTEST_HOLD_SECONDS) { $hold = [int]$env:HERMES_SELFTEST_HOLD_SECONDS }
+    if ($env:SYNAPSE_SELFTEST_HOLD_SECONDS) { $hold = [int]$env:SYNAPSE_SELFTEST_HOLD_SECONDS }
     $floodKb = 8192
-    if ($env:HERMES_SELFTEST_FLOOD_KB) { $floodKb = [int]$env:HERMES_SELFTEST_FLOOD_KB }
+    if ($env:SYNAPSE_SELFTEST_FLOOD_KB) { $floodKb = [int]$env:SYNAPSE_SELFTEST_FLOOD_KB }
     # $PSHOME is this interpreter's own directory -- no hardcoded system path.
     $powershell = Join-Path $PSHOME "powershell.exe"
     $stamp = [Guid]::NewGuid().ToString("N")
-    $childPs1 = Join-Path $TempDir "hermes-pipe-drain-$stamp.ps1"
-    $floodPs1 = Join-Path $TempDir "hermes-pipe-flood-$stamp.ps1"
-    $pidFile = Join-Path $TempDir "hermes-pipe-drain-$stamp.pid"
+    $childPs1 = Join-Path $TempDir "synapse-pipe-drain-$stamp.ps1"
+    $floodPs1 = Join-Path $TempDir "synapse-pipe-flood-$stamp.ps1"
+    $pidFile = Join-Path $TempDir "synapse-pipe-drain-$stamp.pid"
     # UseShellExecute=$false with no redirection is what makes the grandchild
     # inherit our stdout/stderr -- the whole point of the fixture. Anything
     # that redirects (Start-Process, subprocess with stdout=DEVNULL) would
@@ -921,7 +921,7 @@ Write-Output "pipe-drain step output"
 exit 7
 '@
     # Writes straight to the console stream, holding nothing: a step that is
-    # merely loud. `hermes update` is this shape -- the Electron/vite build
+    # merely loud. `synapse update` is this shape -- the Electron/vite build
     # alone is megabytes. Few large lines rather than many small ones on
     # purpose: Write-HandoffLog is one Add-Content per line and runs inside the
     # measured window, so line-heavy output would time the logger instead of
@@ -936,7 +936,7 @@ exit 5
     [System.IO.File]::WriteAllText($childPs1, $childSource)
     [System.IO.File]::WriteAllText($floodPs1, $floodSource)
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $res = Invoke-HermesStep $powershell @(
+    $res = Invoke-SynapseStep $powershell @(
         "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $childPs1,
         "-Hold", [string]$hold, "-PidFile", $pidFile
     ) "pipedrain"
@@ -954,7 +954,7 @@ exit 5
     }
 
     $floodSw = [System.Diagnostics.Stopwatch]::StartNew()
-    $flood = Invoke-HermesStep $powershell @(
+    $flood = Invoke-SynapseStep $powershell @(
         "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $floodPs1,
         "-Kb", [string]$floodKb
     ) "pipeflood"
@@ -998,7 +998,7 @@ try {
     try {
         $epoch = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
         $startedAt = 0L
-        $hasStartedAt = [int64]::TryParse($env:HERMES_UPDATE_STARTED_AT, [ref]$startedAt)
+        $hasStartedAt = [int64]::TryParse($env:SYNAPSE_UPDATE_STARTED_AT, [ref]$startedAt)
         if (-not $hasStartedAt -or $startedAt -gt $epoch -or ($epoch - $startedAt) -gt 1200) {
             $startedAt = $epoch
         }
@@ -1017,7 +1017,7 @@ try {
     }
 
     # -- 1. Wait for the Desktop to exit (FAIL CLOSED) ----------------------
-    Publish-UiProgress "Waiting for Hermes to close"
+    Publish-UiProgress "Waiting for Synapse to close"
     if ($DesktopPid -gt 0) {
         $deadline = (Get-Date).AddSeconds(30)
         while ((Get-Date) -lt $deadline) {
@@ -1030,7 +1030,7 @@ try {
             # A live Desktop means a live backend re-locking the venv at any
             # moment. Updating under it is how installs brick. Abort.
             $finalCode = 4
-            $finalMsg = "Update aborted: the Hermes window (pid $DesktopPid) did not exit within 30s. Nothing was changed. Close Hermes fully and try again."
+            $finalMsg = "Update aborted: the Synapse window (pid $DesktopPid) did not exit within 30s. Nothing was changed. Close Synapse fully and try again."
             Write-HandoffLog $finalMsg
             exit $finalCode
         }
@@ -1038,8 +1038,8 @@ try {
     }
 
     # -- 2. Wait for the venv shim to unlock (FAIL CLOSED) ------------------
-    Publish-UiProgress "Preparing Hermes files"
-    $shim = Join-Path $InstallRoot "venv\Scripts\hermes.exe"
+    Publish-UiProgress "Preparing Synapse files"
+    $shim = Join-Path $InstallRoot "venv\Scripts\synapse.exe"
     if (Test-Path -LiteralPath $shim) {
         $unlocked = $false
         $deadline = (Get-Date).AddSeconds(20)
@@ -1058,7 +1058,7 @@ try {
             # Something still maps the venv. --force-ing past it guarantees a
             # half-updated venv (the exact 2026-08-09 Access-denied brick).
             $finalCode = 5
-            $finalMsg = "Update aborted: another process is still holding the Hermes install open (venv\Scripts\hermes.exe locked after 20s). Nothing was changed. Close other Hermes windows/terminals and try again."
+            $finalMsg = "Update aborted: another process is still holding the Synapse install open (venv\Scripts\synapse.exe locked after 20s). Nothing was changed. Close other Synapse windows/terminals and try again."
             Write-HandoffLog $finalMsg
             exit $finalCode
         }
@@ -1066,18 +1066,18 @@ try {
     }
 
     # -- 3. Run the update from the CURRENT checkout ------------------------
-    # --force skips only the hermes.exe shim guard, which step 2 just PROVED
+    # --force skips only the synapse.exe shim guard, which step 2 just PROVED
     # is unlocked; the venv-python holder guard (orphan reap included) stays
     # active. Our marker claim is adopted by the child via update_lock.py's
     # process-ancestry rule.
     #
-    # DRIVE THE UPDATE THROUGH venv\Scripts\python.exe, NOT venv\Scripts\hermes.exe.
+    # DRIVE THE UPDATE THROUGH venv\Scripts\python.exe, NOT venv\Scripts\synapse.exe.
     # `uv pip install -e .` has to replace the console-script shims, so
-    # _quarantine_running_hermes_exe must first rename the running hermes.exe
+    # _quarantine_running_synapse_exe must first rename the running synapse.exe
     # out of the way. On Windows that rename fails whenever ANY child process
-    # spawned from that hermes.exe is still alive: a child inherits a handle on
+    # spawned from that synapse.exe is still alive: a child inherits a handle on
     # the parent image, and the resulting sharing violation is indistinguishable
-    # from a user leaving a second Hermes window open. It is the inherited
+    # from a user leaving a second Synapse window open. It is the inherited
     # handle, not the trampoline itself, that pins the file -- killing the child
     # makes the same rename succeed immediately, and the shim flavour (uv
     # trampoline vs distlib launcher) makes no difference.
@@ -1097,7 +1097,7 @@ try {
     # elevation a Desktop-driven update does not have, and freed nothing for the
     # install already in flight.)
     #
-    # Running the same code as `python.exe -m hermes_cli.main update` puts the
+    # Running the same code as `python.exe -m synapse_cli.main update` puts the
     # inherited handles on python.exe, which uv never has to replace.
     #
     # posix.sh is deliberately left alone: unlinking a running executable is
@@ -1105,49 +1105,49 @@ try {
     $pythonExe = Join-Path $InstallRoot "venv\Scripts\python.exe"
     if (-not (Test-Path -LiteralPath $pythonExe)) {
         $finalCode = 3
-        $finalMsg = "Update aborted: $pythonExe is missing. The install needs repair (run the Hermes installer or `hermes doctor`)."
+        $finalMsg = "Update aborted: $pythonExe is missing. The install needs repair (run the Synapse installer or `synapse doctor`)."
         Write-HandoffLog $finalMsg
         exit $finalCode
     }
-    $updateArgs = @("-m", "hermes_cli.main", "update", "--yes", "--gateway", "--force", "--branch", $Branch)
+    $updateArgs = @("-m", "synapse_cli.main", "update", "--yes", "--gateway", "--force", "--branch", $Branch)
     # --keep-stash: never re-apply local source edits after the update (they
     # stay parked in git stash). Probe --help first: the flag ships with newer
     # backends and an unknown flag would abort argparse with exit 2, which
-    # collides with the "close all Hermes windows" sentinel.
+    # collides with the "close all Synapse windows" sentinel.
     try {
-        $updateHelp = & $pythonExe -m hermes_cli.main update --help 2>$null | Out-String
+        $updateHelp = & $pythonExe -m synapse_cli.main update --help 2>$null | Out-String
         if ($updateHelp -match "--keep-stash") {
             $updateArgs += "--keep-stash"
         } else {
-            Write-HandoffLog "installed hermes predates --keep-stash; running without it"
+            Write-HandoffLog "installed synapse predates --keep-stash; running without it"
         }
     } catch {
         Write-HandoffLog "could not probe update --help; running without --keep-stash"
     }
     Write-HandoffLog ("running: python " + ($updateArgs -join " "))
     Publish-UiProgress "Updating code and dependencies"
-    $res = Invoke-HermesStep $pythonExe $updateArgs "update"
-    Write-HandoffLog "hermes update exit code: $($res.Code)"
+    $res = Invoke-SynapseStep $pythonExe $updateArgs "update"
+    Write-HandoffLog "synapse update exit code: $($res.Code)"
 
     if ($res.Code -ne 0 -and $res.Code -ne 2) {
         # One retry for the update-boundary class (fresh code on disk, stale
-        # code in memory). Exit 2 ("close all Hermes windows") is not retryable.
+        # code in memory). Exit 2 ("close all Synapse windows") is not retryable.
         Write-HandoffLog "first attempt failed; retrying once (freshly pulled fix loads on the second run)"
         Publish-UiProgress "Retrying update"
-        $res = Invoke-HermesStep $pythonExe $updateArgs "update"
+        $res = Invoke-SynapseStep $pythonExe $updateArgs "update"
         Write-HandoffLog "retry exit code: $($res.Code)"
     }
 
     # -- 4. Truthful completion: don't trust exit 0 -------------------------
-    # `hermes update` treats a Desktop GUI build failure as NON-fatal (prints
+    # `synapse update` treats a Desktop GUI build failure as NON-fatal (prints
     # a one-line warning, exits 0). For a Desktop-DRIVEN update that warning
     # is fatal: we would relaunch the old exe and call it success. Detect it,
     # retry the build once, and propagate honestly.
     $desktopBuildFailed = $false
     if ($res.Code -eq 0 -and $res.Output -match "Desktop build failed") {
-        Write-HandoffLog "hermes update reported a desktop build failure (non-fatal there, fatal here); retrying build"
+        Write-HandoffLog "synapse update reported a desktop build failure (non-fatal there, fatal here); retrying build"
         Publish-UiProgress "Rebuilding Desktop"
-        $rebuild = Invoke-HermesStep $pythonExe @("-m", "hermes_cli.main", "desktop", "--force-build", "--build-only") "rebuild"
+        $rebuild = Invoke-SynapseStep $pythonExe @("-m", "synapse_cli.main", "desktop", "--force-build", "--build-only") "rebuild"
         Write-HandoffLog "desktop rebuild exit code: $($rebuild.Code)"
         if ($rebuild.Code -ne 0) { $desktopBuildFailed = $true }
     }
@@ -1157,10 +1157,10 @@ try {
         $finalMsg = "Update complete."
     } elseif ($desktopBuildFailed) {
         $finalCode = 6
-        $finalMsg = "Code and dependencies updated, but the Desktop app REBUILD FAILED - you are running the previous build. Run `hermes desktop --force-build` from a terminal to retry."
+        $finalMsg = "Code and dependencies updated, but the Desktop app REBUILD FAILED - you are running the previous build. Run `synapse desktop --force-build` from a terminal to retry."
     } else {
         $finalCode = $res.Code
-        $finalMsg = "Update failed (exit $($res.Code)). Run `hermes debug share` in a terminal to send a report."
+        $finalMsg = "Update failed (exit $($res.Code)). Run `synapse debug share` in a terminal to send a report."
     }
     exit $finalCode
 } finally {
@@ -1168,7 +1168,7 @@ try {
     #   1. durable result + marker removal (the relaunched Desktop consumes
     #      the result on boot and must not park on our marker);
     #   2. attempt the relaunch and require ACCEPTANCE;
-    #   3. only then the terminal UI state — done means "Hermes is back",
+    #   3. only then the terminal UI state — done means "Synapse is back",
     #      manual means "it is not, reopen it", error is error (and still
     #      tries to bring the app back after showing itself).
     Write-Result ($finalCode -eq 0) $finalCode $finalMsg
@@ -1178,12 +1178,12 @@ try {
         Close-ProgressWindow
         [void](Start-DesktopRelaunch)
     } else {
-        Publish-UiProgress "Opening Hermes"
+        Publish-UiProgress "Opening Synapse"
         $cameBack = Start-DesktopRelaunch
         if (-not $cameBack -and $RelaunchExe) {
             # Launch was due and did not verifiably land: truthful result
             # for the next boot, manual state held on screen now.
-            $finalMsg = "Update complete. Reopen Hermes to finish (it could not restart itself)."
+            $finalMsg = "Update complete. Reopen Synapse to finish (it could not restart itself)."
             Write-Result $true 0 $finalMsg $true
             Show-ManualFinale $finalMsg
         }

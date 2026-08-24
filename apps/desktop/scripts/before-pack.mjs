@@ -10,7 +10,7 @@
  * ---------------
  * electron-builder's final packaging step copies the stock `electron`
  * binary into `release/<platform>-unpacked/` and then renames it to the
- * product name (`Hermes`). If a PREVIOUS `npm run pack` was interrupted
+ * product name (`Synapse`). If a PREVIOUS `npm run pack` was interrupted
  * (Ctrl-C, OOM kill, crash, full disk) the unpacked directory is left in a
  * corrupted partial state: it keeps the already-renamed `LICENSE.electron.txt`
  * and the Chromium payload (.pak/.so/icudtl.dat/chrome-sandbox) but is MISSING
@@ -21,9 +21,9 @@
  * rename a `electron` file that no longer exists. The build dies with:
  *
  *   ENOENT: no such file or directory, rename
- *   '.../release/linux-unpacked/electron' -> '.../release/linux-unpacked/Hermes'
+ *   '.../release/linux-unpacked/electron' -> '.../release/linux-unpacked/Synapse'
  *
- * This is a hard failure with no obvious cause for the user — `hermes desktop`
+ * This is a hard failure with no obvious cause for the user — `synapse desktop`
  * just prints "Desktop GUI build failed" and the only fix is to manually
  * `rm -rf` the release directory, which a normal user has no way to know.
  *
@@ -83,7 +83,7 @@ export function cleanStaleAppOutDir(appOutDir) {
  * cleanStaleAppOutDir exists to remove). If the fresh pack then produces a
  * Hermes.exe that Windows can't load (truncated PE from a corrupt cached
  * Electron zip, wrong arch), the updater's integrity gate in
- * `hermes desktop --build-only` (hermes_cli/main.py
+ * `synapse desktop --build-only` (synapse_cli/main.py
  * `_ensure_desktop_exe_launchable`) restores this .bak instead of leaving the
  * user with "This app can't run on your computer".
  *
@@ -118,7 +118,7 @@ export default async function beforePack(context) {
     // post-build integrity gate (#69179) instead of destroying it. Falls
     // through to the plain wipe when the old tree is partial/corrupt or the
     // rename fails.
-    const productExe = `${(context && context.packager?.appInfo?.productFilename) || 'Hermes'}.exe`
+    const productExe = `${(context && context.packager?.appInfo?.productFilename) || 'Synapse'}.exe`
     if (platformName === 'win32' && preserveRollbackBackup(appOutDir, productExe)) {
       console.log(`[before-pack] preserved previous unpacked dir for rollback: ${appOutDir}.bak`)
     } else if (cleanStaleAppOutDir(appOutDir)) {

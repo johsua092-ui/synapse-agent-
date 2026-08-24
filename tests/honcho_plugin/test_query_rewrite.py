@@ -12,8 +12,8 @@ from plugins.memory.query_rewrite import (
     _normalize_rewrite,
     rewrite_memory_query,
 )
-from hermes_cli.config import DEFAULT_CONFIG
-from hermes_cli.main import _AUX_TASKS
+from synapse_cli.config import DEFAULT_CONFIG
+from synapse_cli.main import _AUX_TASKS
 
 
 def _response(text: str):

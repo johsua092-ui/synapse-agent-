@@ -7,7 +7,7 @@ A direct ``jobs.json`` edit that changes ``schedule.expr`` leaves the stored
 the job fired on the day the new expression excludes. The guard re-anchors
 ``next_run_at`` from the current expression and skips the fire.
 
-These exercise the real store against a temp ``HERMES_HOME`` (no mocks) per
+These exercise the real store against a temp ``SYNAPSE_HOME`` (no mocks) per
 the E2EE-over-mocks discipline for file-touching code.
 """
 
@@ -20,8 +20,8 @@ import pytest
 
 @pytest.fixture
 def temp_home(tmp_path, monkeypatch):
-    """Isolated HERMES_HOME so jobs.json doesn't touch the real store."""
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    """Isolated SYNAPSE_HOME so jobs.json doesn't touch the real store."""
+    monkeypatch.setenv("SYNAPSE_HOME", str(tmp_path))
     yield tmp_path
 
 
@@ -50,7 +50,7 @@ def test_stale_next_run_on_excluded_dow_does_not_fire(temp_home, monkeypatch):
     from cron.jobs import get_due_jobs, get_job
 
     monkeypatch.setattr(
-        "cron.jobs._hermes_now", lambda: _SATURDAY_0700 + timedelta(seconds=30)
+        "cron.jobs._synapse_now", lambda: _SATURDAY_0700 + timedelta(seconds=30)
     )
     jid = _write_cron_job("0 7 * * 1-5", _SATURDAY_0700)
 
@@ -67,7 +67,7 @@ def test_matching_next_run_still_fires(temp_home, monkeypatch):
     from cron.jobs import get_due_jobs
 
     monkeypatch.setattr(
-        "cron.jobs._hermes_now", lambda: _SATURDAY_0700 + timedelta(seconds=30)
+        "cron.jobs._synapse_now", lambda: _SATURDAY_0700 + timedelta(seconds=30)
     )
     jid = _write_cron_job("0 7 * * *", _SATURDAY_0700)
 
@@ -82,7 +82,7 @@ def test_stale_next_run_skips_even_inside_catchup_window(temp_home, monkeypatch)
     from cron.jobs import get_due_jobs, get_job
 
     monkeypatch.setattr(
-        "cron.jobs._hermes_now", lambda: _SATURDAY_0700 + timedelta(hours=5)
+        "cron.jobs._synapse_now", lambda: _SATURDAY_0700 + timedelta(hours=5)
     )
     jid = _write_cron_job("0 7 * * 1-5", _SATURDAY_0700)
 

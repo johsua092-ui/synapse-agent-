@@ -18,15 +18,15 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def _isolate_hermes(tmp_path, monkeypatch):
-    monkeypatch.setenv("HERMES_HOME", str(tmp_path / ".hermes"))
-    (tmp_path / ".hermes").mkdir(exist_ok=True)
+def _isolate_synapse(tmp_path, monkeypatch):
+    monkeypatch.setenv("SYNAPSE_HOME", str(tmp_path / ".synapse"))
+    (tmp_path / ".synapse").mkdir(exist_ok=True)
 
 
 def _make_agent(monkeypatch):
     """Minimal AIAgent-like stub, mirroring test_concurrent_interrupt.py."""
     monkeypatch.setenv("OPENROUTER_API_KEY", "")
-    monkeypatch.setenv("HERMES_INFERENCE_PROVIDER", "")
+    monkeypatch.setenv("SYNAPSE_INFERENCE_PROVIDER", "")
     import run_agent as _ra
 
     class _Stub:

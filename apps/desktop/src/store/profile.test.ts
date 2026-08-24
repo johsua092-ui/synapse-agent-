@@ -1,8 +1,8 @@
 import { atom } from 'nanostores'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { HermesConnection } from '@/global'
-import type { ProfileInfo } from '@/types/hermes'
+import type { SynapseConnection } from '@/global'
+import type { ProfileInfo } from '@/types/synapse'
 
 // Keep profile.ts's side-effecting imports inert: the gateway socket layer and
 // the REST query client must not run for real in a unit test.
@@ -13,7 +13,7 @@ const $gateway = atom<unknown>({ id: 'live-socket' })
 const resetStarmapGraph = vi.fn()
 
 vi.mock('@/store/gateway', () => ({ $gateway, ensureGatewayForAgent, ensureGatewayForProfile, openGatewayForProfile }))
-vi.mock('@/hermes', () => ({
+vi.mock('@/synapse', () => ({
   getProfiles: vi.fn(async () => ({ profiles: [] })),
   setApiRequestProfile: vi.fn()
 }))
@@ -31,25 +31,25 @@ const {
 
 const { $connection } = await import('./session')
 const { invalidateProfileScopedQueries } = await import('@/lib/query-client')
-const { getProfiles } = await import('@/hermes')
+const { getProfiles } = await import('@/synapse')
 
 const profile = (name: string, isDefault = false): ProfileInfo => ({
   has_env: false,
   is_default: isDefault,
   model: null,
   name,
-  path: `/tmp/hermes/${name}`,
+  path: `/tmp/synapse/${name}`,
   provider: null,
   skill_count: 0
 })
 
-const remoteConn = (over: Partial<HermesConnection> = {}): HermesConnection =>
-  ({ baseUrl: 'https://hermes-roy.tail.ts.net', mode: 'remote', profile: 'vps-remote', ...over }) as HermesConnection
+const remoteConn = (over: Partial<SynapseConnection> = {}): SynapseConnection =>
+  ({ baseUrl: 'https://synapse-roy.tail.ts.net', mode: 'remote', profile: 'vps-remote', ...over }) as SynapseConnection
 
-const localConn = (over: Partial<HermesConnection> = {}): HermesConnection =>
-  ({ baseUrl: '', mode: 'local', profile: 'default', ...over }) as HermesConnection
+const localConn = (over: Partial<SynapseConnection> = {}): SynapseConnection =>
+  ({ baseUrl: '', mode: 'local', profile: 'default', ...over }) as SynapseConnection
 
-const getConnection = vi.fn<(profile?: string | null) => Promise<HermesConnection>>()
+const getConnection = vi.fn<(profile?: string | null) => Promise<SynapseConnection>>()
 
 beforeEach(() => {
   getConnection.mockReset()
@@ -59,7 +59,7 @@ beforeEach(() => {
   $activeGatewayProfile.set('default')
   $connection.set(localConn())
   $profiles.set([])
-  vi.stubGlobal('window', { hermesDesktop: { getConnection } })
+  vi.stubGlobal('window', { synapseDesktop: { getConnection } })
   vi.mocked(invalidateProfileScopedQueries).mockClear()
   resetStarmapGraph.mockClear()
 })

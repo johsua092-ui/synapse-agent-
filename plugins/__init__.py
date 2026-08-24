@@ -1,1 +1,1 @@
-# Hermes plugins package
+# Synapse plugins package

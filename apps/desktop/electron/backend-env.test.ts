@@ -7,16 +7,16 @@ import {
   appendUniquePathEntries,
   buildDesktopBackendEnv,
   buildDesktopBackendPath,
-  hermesManagedNodePathEntries,
-  normalizeHermesHomeRoot,
+  synapseManagedNodePathEntries,
+  normalizeSynapseHomeRoot,
   pathEnvKey,
   POSIX_SANE_PATH_ENTRIES
 } from './backend-env'
 
-test('desktop backend PATH adds Hermes-managed bins and missing POSIX sane entries', () => {
+test('desktop backend PATH adds Synapse-managed bins and missing POSIX sane entries', () => {
   const result = buildDesktopBackendPath({
-    hermesHome: '/Users/test/.hermes',
-    venvRoot: '/Users/test/.hermes/hermes-agent/venv',
+    synapseHome: '/Users/test/.synapse',
+    venvRoot: '/Users/test/.synapse/synapse-agent/venv',
     currentPath: '/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin',
     platform: 'darwin',
     pathModule: path.posix
@@ -25,9 +25,9 @@ test('desktop backend PATH adds Hermes-managed bins and missing POSIX sane entri
   const entries = result.split(':')
   // Both managed-Node layouts lead, POSIX-native shape first, then the venv.
   assert.deepEqual(entries.slice(0, 3), [
-    '/Users/test/.hermes/node/bin',
-    '/Users/test/.hermes/node',
-    '/Users/test/.hermes/hermes-agent/venv/bin'
+    '/Users/test/.synapse/node/bin',
+    '/Users/test/.synapse/node',
+    '/Users/test/.synapse/synapse-agent/venv/bin'
   ])
   assert.ok(entries.includes('/opt/homebrew/bin'), 'Apple Silicon Homebrew bin is added')
   assert.ok(entries.includes('/opt/homebrew/sbin'), 'Apple Silicon Homebrew sbin is added')
@@ -39,44 +39,44 @@ test('desktop backend PATH adds Hermes-managed bins and missing POSIX sane entri
 })
 
 test('managed Node dirs lead with the platform-native layout but always offer both', () => {
-  const posix = hermesManagedNodePathEntries('/Users/test/.hermes', {
+  const posix = synapseManagedNodePathEntries('/Users/test/.synapse', {
     platform: 'darwin',
     pathModule: path.posix
   })
 
-  const windows = hermesManagedNodePathEntries('C:\\Users\\test\\AppData\\Local\\hermes', {
+  const windows = synapseManagedNodePathEntries('C:\\Users\\test\\AppData\\Local\\synapse', {
     platform: 'win32',
     pathModule: path.win32
   })
 
   // install.sh uses node/bin; install.ps1 unpacks node.exe into node\ itself.
   // Both shapes are always emitted so migrated installs keep resolving.
-  assert.deepEqual(posix, ['/Users/test/.hermes/node/bin', '/Users/test/.hermes/node'])
+  assert.deepEqual(posix, ['/Users/test/.synapse/node/bin', '/Users/test/.synapse/node'])
   assert.deepEqual(windows, [
-    'C:\\Users\\test\\AppData\\Local\\hermes\\node',
-    'C:\\Users\\test\\AppData\\Local\\hermes\\node\\bin'
+    'C:\\Users\\test\\AppData\\Local\\synapse\\node',
+    'C:\\Users\\test\\AppData\\Local\\synapse\\node\\bin'
   ])
 })
 
-test('managed Node dirs are empty without a Hermes home', () => {
-  assert.deepEqual(hermesManagedNodePathEntries(undefined, { platform: 'darwin', pathModule: path.posix }), [])
-  assert.deepEqual(hermesManagedNodePathEntries('', { platform: 'win32', pathModule: path.win32 }), [])
+test('managed Node dirs are empty without a Synapse home', () => {
+  assert.deepEqual(synapseManagedNodePathEntries(undefined, { platform: 'darwin', pathModule: path.posix }), [])
+  assert.deepEqual(synapseManagedNodePathEntries('', { platform: 'win32', pathModule: path.win32 }), [])
 })
 
 test('every managed Node dir outranks the inherited PATH on both platforms', () => {
   for (const [platform, pathModule, home, inherited, delimiter] of [
-    ['darwin', path.posix, '/Users/test/.hermes', '/usr/local/bin:/usr/bin', ':'],
-    ['win32', path.win32, 'C:\\hermes', 'C:\\Program Files\\nodejs;C:\\Windows\\System32', ';']
+    ['darwin', path.posix, '/Users/test/.synapse', '/usr/local/bin:/usr/bin', ':'],
+    ['win32', path.win32, 'C:\\synapse', 'C:\\Program Files\\nodejs;C:\\Windows\\System32', ';']
   ] as const) {
     const entries = buildDesktopBackendPath({
-      hermesHome: home,
+      synapseHome: home,
       venvRoot: null,
       currentPath: inherited,
       platform,
       pathModule
     }).split(delimiter)
 
-    const managed = hermesManagedNodePathEntries(home, { platform, pathModule })
+    const managed = synapseManagedNodePathEntries(home, { platform, pathModule })
     const firstInherited = Math.min(...inherited.split(delimiter).map(entry => entries.indexOf(entry)))
 
     for (const dir of managed) {
@@ -90,8 +90,8 @@ test('every managed Node dir outranks the inherited PATH on both platforms', () 
 
 test('desktop backend PATH preserves first occurrence and avoids duplicates', () => {
   const result = buildDesktopBackendPath({
-    hermesHome: '/Users/test/.hermes',
-    venvRoot: '/Users/test/.hermes/hermes-agent/venv',
+    synapseHome: '/Users/test/.synapse',
+    venvRoot: '/Users/test/.synapse/synapse-agent/venv',
     currentPath: '/opt/homebrew/bin:/usr/bin:/opt/homebrew/bin:/bin',
     platform: 'darwin',
     pathModule: path.posix
@@ -107,9 +107,9 @@ test('desktop backend PATH preserves first occurrence and avoids duplicates', ()
 
 test('buildDesktopBackendEnv extends PYTHONPATH and backend PATH together', () => {
   const env = buildDesktopBackendEnv({
-    hermesHome: '/Users/test/.hermes',
-    pythonPathEntries: ['/repo/hermes-agent'],
-    venvRoot: '/Users/test/.hermes/hermes-agent/venv',
+    synapseHome: '/Users/test/.synapse',
+    pythonPathEntries: ['/repo/synapse-agent'],
+    venvRoot: '/Users/test/.synapse/synapse-agent/venv',
     currentEnv: {
       PATH: '/usr/bin:/bin',
       PYTHONPATH: '/existing/pythonpath'
@@ -118,10 +118,10 @@ test('buildDesktopBackendEnv extends PYTHONPATH and backend PATH together', () =
     pathModule: path.posix
   })
 
-  assert.equal(env.PYTHONPATH, '/repo/hermes-agent:/existing/pythonpath')
+  assert.equal(env.PYTHONPATH, '/repo/synapse-agent:/existing/pythonpath')
   assert.ok(
     env.PATH.startsWith(
-      '/Users/test/.hermes/node/bin:/Users/test/.hermes/node:/Users/test/.hermes/hermes-agent/venv/bin:'
+      '/Users/test/.synapse/node/bin:/Users/test/.synapse/node:/Users/test/.synapse/synapse-agent/venv/bin:'
     )
   )
   assert.ok(env.PATH.includes('/opt/homebrew/bin'))
@@ -129,7 +129,7 @@ test('buildDesktopBackendEnv extends PYTHONPATH and backend PATH together', () =
 
 test('buildDesktopBackendEnv forces PYTHONUTF8 unless the user set it explicitly', () => {
   const defaulted = buildDesktopBackendEnv({
-    hermesHome: '/Users/test/.hermes',
+    synapseHome: '/Users/test/.synapse',
     currentEnv: { PATH: '/usr/bin' },
     platform: 'darwin',
     pathModule: path.posix
@@ -138,7 +138,7 @@ test('buildDesktopBackendEnv forces PYTHONUTF8 unless the user set it explicitly
   assert.equal(defaulted.PYTHONUTF8, '1')
 
   const optedOut = buildDesktopBackendEnv({
-    hermesHome: '/Users/test/.hermes',
+    synapseHome: '/Users/test/.synapse',
     currentEnv: { PATH: '/usr/bin', PYTHONUTF8: '0' },
     platform: 'darwin',
     pathModule: path.posix
@@ -147,23 +147,23 @@ test('buildDesktopBackendEnv forces PYTHONUTF8 unless the user set it explicitly
   assert.equal(optedOut.PYTHONUTF8, '0')
 })
 
-test('normalizeHermesHomeRoot maps profile homes back to the global Hermes root', () => {
+test('normalizeSynapseHomeRoot maps profile homes back to the global Synapse root', () => {
   assert.equal(
-    normalizeHermesHomeRoot('/Users/test/.hermes/profiles/oracle', { pathModule: path.posix }),
-    '/Users/test/.hermes'
+    normalizeSynapseHomeRoot('/Users/test/.synapse/profiles/oracle', { pathModule: path.posix }),
+    '/Users/test/.synapse'
   )
   assert.equal(
-    normalizeHermesHomeRoot('C:\\Users\\test\\AppData\\Local\\hermes\\profiles\\oracle', { pathModule: path.win32 }),
-    'C:\\Users\\test\\AppData\\Local\\hermes'
+    normalizeSynapseHomeRoot('C:\\Users\\test\\AppData\\Local\\synapse\\profiles\\oracle', { pathModule: path.win32 }),
+    'C:\\Users\\test\\AppData\\Local\\synapse'
   )
-  assert.equal(normalizeHermesHomeRoot('/Users/test/.hermes', { pathModule: path.posix }), '/Users/test/.hermes')
+  assert.equal(normalizeSynapseHomeRoot('/Users/test/.synapse', { pathModule: path.posix }), '/Users/test/.synapse')
 })
 
 test('Windows PATH casing and delimiter are preserved without POSIX sane entries', () => {
   const env = buildDesktopBackendEnv({
-    hermesHome: 'C:\\Users\\test\\AppData\\Local\\hermes',
-    pythonPathEntries: ['C:\\repo\\hermes-agent'],
-    venvRoot: 'C:\\Users\\test\\AppData\\Local\\hermes\\hermes-agent\\venv',
+    synapseHome: 'C:\\Users\\test\\AppData\\Local\\synapse',
+    pythonPathEntries: ['C:\\repo\\synapse-agent'],
+    venvRoot: 'C:\\Users\\test\\AppData\\Local\\synapse\\synapse-agent\\venv',
     currentEnv: {
       Path: 'C:\\Windows\\System32;C:\\Windows',
       PYTHONPATH: 'C:\\existing\\pythonpath'
@@ -178,7 +178,7 @@ test('Windows PATH casing and delimiter are preserved without POSIX sane entries
   // straight into node\, no bin\), then the POSIX shape for migrated installs.
   assert.ok(
     env.Path.startsWith(
-      'C:\\Users\\test\\AppData\\Local\\hermes\\node;C:\\Users\\test\\AppData\\Local\\hermes\\node\\bin;'
+      'C:\\Users\\test\\AppData\\Local\\synapse\\node;C:\\Users\\test\\AppData\\Local\\synapse\\node\\bin;'
     )
   )
   assert.ok(env.Path.includes('\\venv\\Scripts;'))

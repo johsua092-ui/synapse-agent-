@@ -16,8 +16,8 @@ const secondaryGateways: Array<{
   request: ReturnType<typeof vi.fn>
 }> = []
 
-vi.mock('@/hermes', () => ({
-  HermesGateway: class {
+vi.mock('@/synapse', () => ({
+  SynapseGateway: class {
     connectionState = 'closed'
     connect = vi.fn(async () => {
       this.connectionState = 'open'
@@ -56,7 +56,7 @@ const {
 const { requestForSessionProfile, sessionRpcNeedsProfileRoute } = await import('./session-request-router')
 
 function installDesktop(): void {
-  ;(window as unknown as { hermesDesktop: unknown }).hermesDesktop = {
+  ;(window as unknown as { synapseDesktop: unknown }).synapseDesktop = {
     getConnection: vi.fn(async (profile: null | string) =>
       profile ? { port: 5151, profile, token: 'secondary-token' } : { port: 4242, token: 'primary-token' }
     ),
@@ -85,7 +85,7 @@ beforeEach(() => {
 afterEach(() => {
   closeSecondaryGateways()
   vi.clearAllMocks()
-  delete (window as unknown as { hermesDesktop?: unknown }).hermesDesktop
+  delete (window as unknown as { synapseDesktop?: unknown }).synapseDesktop
 })
 
 describe('$activeGatewayRoute (registry-owned active profile)', () => {
@@ -160,9 +160,9 @@ describe('requestForSessionProfile', () => {
 
     const desktop = (
       window as unknown as {
-        hermesDesktop: { getConnectionFor: ReturnType<typeof vi.fn> }
+        synapseDesktop: { getConnectionFor: ReturnType<typeof vi.fn> }
       }
-    ).hermesDesktop
+    ).synapseDesktop
 
     const ambient = vi.fn(async () => ({ ambient: true }))
 

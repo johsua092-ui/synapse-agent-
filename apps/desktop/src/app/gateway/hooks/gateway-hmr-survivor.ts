@@ -3,18 +3,18 @@
 // self-accept so this module's own reload doesn't reset the cache. Prod strips
 // import.meta.hot → byte-for-byte unchanged live unmount.
 
-import type { HermesConnection } from '@/global'
-import type { HermesGateway } from '@/hermes'
+import type { SynapseConnection } from '@/global'
+import type { SynapseGateway } from '@/synapse'
 
 export interface GatewaySurvivor {
-  gateway: HermesGateway
+  gateway: SynapseGateway
   profile: string
-  connection: HermesConnection | null
+  connection: SynapseConnection | null
 }
 
 // One slot on globalThis, keyed by a process-stable Symbol so repeated imports
 // (across hot reloads) resolve the exact same store.
-const SURVIVOR_KEY = Symbol.for('hermes.desktop.gatewaySurvivor')
+const SURVIVOR_KEY = Symbol.for('synapse.desktop.gatewaySurvivor')
 
 interface SurvivorGlobal {
   [SURVIVOR_KEY]?: GatewaySurvivor | null

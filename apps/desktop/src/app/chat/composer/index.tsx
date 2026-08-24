@@ -108,7 +108,7 @@ export function ChatBar({
   onTranscribeAudio
 }: ChatBarProps) {
   const hudMode = useStore($hudMode)
-  const hudNativeDrag = hudMode && window.hermesDesktop?.hud?.nativeDrag === true
+  const hudNativeDrag = hudMode && window.synapseDesktop?.hud?.nativeDrag === true
   const hudX11Drag = hudMode && isLinuxPlatform() && !hudNativeDrag
 
   const { grabbing: hudGrabbing, onPointerDown: onHudDragPointerDown } = useHudComposerDrag(hudMode && !hudNativeDrag, {

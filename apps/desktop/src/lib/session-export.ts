@@ -1,5 +1,5 @@
-import type { SessionInfo } from '@/hermes'
-import { getAllSessionMessages } from '@/hermes'
+import type { SessionInfo } from '@/synapse'
+import { getAllSessionMessages } from '@/synapse'
 import { translateNow } from '@/i18n'
 import { notify, notifyError } from '@/store/notifications'
 
