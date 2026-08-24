@@ -10,7 +10,7 @@
   <a href="https://synapse-agent.nousresearch.com/docs/"><img src="https://img.shields.io/badge/Docs-synapse--agent.nousresearch.com-FFD700?style=for-the-badge" alt="Documentation"></a>
   <a href="https://discord.gg/NousResearch"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
   <a href="https://github.com/NousResearch/synapse-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
-  <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Nous%20Research-blueviolet?style=for-the-badge" alt="Built by Josh Research"></a>
+  <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Josh%20Research-blueviolet?style=for-the-badge" alt="Built by Josh Research"></a>
   <a href="README.zh-CN.md"><img src="https://img.shields.io/badge/Lang-中文-red?style=for-the-badge" alt="中文"></a>
   <a href="README.ur-pk.md"><img src="https://img.shields.io/badge/Lang-اردو-green?style=for-the-badge" alt="اردو"></a>
   <a href="README.es.md"><img src="https://img.shields.io/badge/Lang-Español-orange?style=for-the-badge" alt="Español"></a>
@@ -99,6 +99,37 @@ If attestation says "Verification succeeded" and the last line prints `True`, yo
 - Whitelist the **folder**, not the file hash — Synapse updates `uv` and the hash changes every version
 
 For more context, see the upstream Astral reports: [astral-sh/uv#13553](https://github.com/astral-sh/uv/issues/13553), [astral-sh/uv#15011](https://github.com/astral-sh/uv/issues/15011), [astral-sh/uv#10079](https://github.com/astral-sh/uv/issues/10079).
+
+---
+
+## Deploy to Railway
+
+Deploy Synapse Agent to [Railway](https://railway.app) as a one-click container service. The image already ships with an s6-overlay entrypoint and a supervised web dashboard.
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/synapse-agent?referralCode=QXdhdr)
+
+### What you get
+
+- **Web dashboard** on a public Railway URL (auth-gated, see below)
+- **Persistent volume** for agent state (mount a volume at `/opt/data` / `$SYNAPSE_HOME`)
+- **Health check** wired to `/api/health`
+
+### Setup
+
+1. Click **Deploy on Railway** above (or create a new service from this repo — Railway auto-detects `railway.toml` + `Dockerfile`).
+2. Attach a volume mounted at `/opt/data`.
+3. Add the required service variables (see [.env.railway.example](.env.railway.example)). At minimum:
+   - `SYNAPSE_DASHBOARD=1`
+   - An auth provider — **Basic Auth** (`SYNAPSE_DASHBOARD_BASIC_AUTH_USERNAME` + `SYNAPSE_DASHBOARD_BASIC_AUTH_PASSWORD`) or OAuth/OIDC. Without one the dashboard **fails closed** on the public bind.
+4. Add your model/provider API keys (`OPENROUTER_API_KEY`, `OPENAI_API_KEY`, etc.).
+
+### Docker (self-host)
+
+```bash
+SYNAPSE_UID=$(id -u) SYNAPSE_GID=$(id -g) docker compose up -d
+```
+
+See `docker-compose.yml` and the `docker/` directory for the full supervised setup. A Windows compose variant is in `docker-compose.windows.yml`.
 
 ---
 
